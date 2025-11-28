@@ -377,9 +377,6 @@ Ver [LICENSE](LICENSE) para más detalles.
   - Email: info@gcoop.coop
   - GitHub: [@gcoop](https://github.com/gcoop)
 
-### Creado por:
-- Leandro - Presidente de gcoop y ex-presidente de FACTTIC
-
 ---
 
 ## 🙏 Agradecimientos
