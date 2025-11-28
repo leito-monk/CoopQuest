@@ -1,0 +1,21 @@
+{
+  "short_name": "CoopQuest",
+  "name": "CoopQuest - Búsqueda del Tesoro Cooperativa",
+  "description": "Juego de búsqueda del tesoro con códigos QR para eventos cooperativos",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#2563eb",
+  "background_color": "#ffffff",
+  "categories": ["games", "education", "productivity"],
+  "lang": "es-AR"
+}

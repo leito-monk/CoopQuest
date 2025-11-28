@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: coopquest-db
+    environment:
+      POSTGRES_DB: coopquest
+      POSTGRES_USER: coopquest
+      POSTGRES_PASSWORD: coopquest123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coopquest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: coopquest-backend
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://coopquest:coopquest123@postgres:5432/coopquest
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-coopquest-secret-key-change-me}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      QR_CODE_PREFIX: COOPQUEST-2025
+      QR_CODE_SECRET: ${QR_CODE_SECRET:-qr-secret-change-me}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm start
+
+  frontend:
+    build: ./frontend
+    container_name: coopquest-frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+      VITE_WS_URL: ws://localhost:3001
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

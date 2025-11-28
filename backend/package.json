@@ -1,0 +1,30 @@
+{
+  "name": "coopquest-backend",
+  "version": "1.0.0",
+  "description": "Backend API para CoopQuest",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed:demo": "node src/seeds/demo.js",
+    "db:init": "node src/database/init.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1",
+    "qrcode": "^1.5.3",
+    "jimp": "^0.22.10",
+    "ws": "^8.16.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

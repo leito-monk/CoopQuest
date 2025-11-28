@@ -1,0 +1,34 @@
+{
+  "name": "coopquest",
+  "version": "1.0.0",
+  "description": "Juego de búsqueda del tesoro con códigos QR para eventos cooperativos",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "cd frontend && npm run build",
+    "seed:demo": "cd backend && npm run seed:demo",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:rebuild": "docker-compose down && docker-compose build && docker-compose up -d"
+  },
+  "keywords": [
+    "cooperativismo",
+    "qr-codes",
+    "treasure-hunt",
+    "gamification",
+    "open-source"
+  ],
+  "author": "gcoop - Cooperativa de Software Libre",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gcoop/coopquest"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
