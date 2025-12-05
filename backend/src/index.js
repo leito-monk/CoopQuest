@@ -11,6 +11,7 @@ import checkpointsRoutes from './routes/checkpoints.js';
 import teamsRoutes from './routes/teams.js';
 import gameRoutes from './routes/game.js';
 import adminRoutes from './routes/admin.js';
+import encountersRoutes, { setBroadcastFunction } from './routes/encounters.js';
 
 // Import middleware
 import { apiRateLimiter } from './middleware/rateLimiter.js';
@@ -30,10 +31,14 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 // Store active connections by event ID
 const eventConnections = new Map();
 
+// Store team connections for direct messaging
+const teamConnections = new Map();
+
 wss.on('connection', (ws, req) => {
   console.log('🔌 New WebSocket connection');
   
   let currentEventId = null;
+  let currentTeamId = null;
   
   ws.on('message', (message) => {
     try {
@@ -55,7 +60,20 @@ wss.on('connection', (ws, req) => {
         connections.push(ws);
         eventConnections.set(currentEventId, connections);
         
-        console.log(`📡 Client subscribed to event: ${currentEventId}`);
+        // Track team connection if provided
+        if (data.teamId) {
+          currentTeamId = data.teamId;
+          teamConnections.set(currentTeamId, ws);
+          
+          // Notify other teams that this team is online
+          broadcastToEvent(currentEventId, {
+            type: 'team:online',
+            teamId: currentTeamId,
+            teamName: data.teamName || 'Unknown'
+          }, currentTeamId);
+        }
+        
+        console.log(`📡 Client subscribed to event: ${currentEventId}${currentTeamId ? ` (team: ${currentTeamId})` : ''}`);
         
         ws.send(JSON.stringify({
           type: 'subscribed',
@@ -70,6 +88,14 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     console.log('🔌 WebSocket connection closed');
     
+    // Notify that team went offline
+    if (currentEventId && currentTeamId) {
+      broadcastToEvent(currentEventId, {
+        type: 'team:offline',
+        teamId: currentTeamId
+      }, currentTeamId);
+    }
+    
     // Remove connection from all events
     if (currentEventId) {
       const connections = eventConnections.get(currentEventId) || [];
@@ -77,6 +103,11 @@ wss.on('connection', (ws, req) => {
         currentEventId,
         connections.filter(c => c !== ws)
       );
+    }
+    
+    // Remove team connection
+    if (currentTeamId) {
+      teamConnections.delete(currentTeamId);
     }
   });
   
@@ -103,6 +134,37 @@ export function broadcastLeaderboardUpdate(eventId, leaderboard) {
   
   console.log(`📡 Broadcasted leaderboard update to ${connections.length} clients for event ${eventId}`);
 }
+
+// Function to broadcast any message to an event
+export function broadcastToEvent(eventId, data, excludeTeamId = null) {
+  const connections = eventConnections.get(eventId) || [];
+  
+  const message = JSON.stringify(data);
+  
+  connections.forEach(ws => {
+    if (ws.readyState === ws.OPEN) {
+      ws.send(message);
+    }
+  });
+  
+  console.log(`📡 Broadcasted ${data.type} to ${connections.length} clients for event ${eventId}`);
+}
+
+// Function to send message to a specific team
+export function sendToTeam(teamId, data) {
+  const ws = teamConnections.get(teamId);
+  
+  if (ws && ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(data));
+    console.log(`📡 Sent ${data.type} to team ${teamId}`);
+    return true;
+  }
+  
+  return false;
+}
+
+// Set the broadcast function for encounters routes
+setBroadcastFunction(broadcastToEvent);
 
 // Middleware
 app.use(helmet());
@@ -134,6 +196,7 @@ app.use('/api/checkpoints', checkpointsRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/encounters', encountersRoutes);
 
 // 404 handler
 app.use((req, res) => {

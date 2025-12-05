@@ -4,6 +4,7 @@ import * as eventsModel from '../models/events.js';
 import { formatError, formatSuccess, validateTeamName } from '../utils/helpers.js';
 import { generateToken } from '../middleware/auth.js';
 import { registrationRateLimiter } from '../middleware/rateLimiter.js';
+import { broadcastToEvent } from '../index.js';
 
 const router = express.Router();
 
@@ -42,12 +43,21 @@ router.post('/register', registrationRateLimiter, async (req, res) => {
       // Generate JWT token
       const token = generateToken(team);
       
+      // Broadcast to all teams in the event that a new team joined
+      broadcastToEvent(eventId, {
+        type: 'team:joined',
+        teamId: team.id,
+        teamName: team.name,
+        personalQRCode: team.personal_qr_code
+      });
+      
       res.status(201).json(formatSuccess({
         team: {
           id: team.id,
           name: team.name,
           score: team.score,
-          eventId: team.event_id
+          eventId: team.event_id,
+          personalQRCode: team.personal_qr_code
         },
         token
       }, 'Equipo registrado exitosamente'));

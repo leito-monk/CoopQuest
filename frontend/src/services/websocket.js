@@ -5,11 +5,18 @@ class WebSocketService {
     this.ws = null;
     this.reconnectTimeout = null;
     this.listeners = new Map();
+    this.currentEventId = null;
+    this.currentTeamId = null;
+    this.currentTeamName = null;
   }
 
-  connect(eventId) {
+  connect(eventId, teamId = null, teamName = null) {
+    this.currentEventId = eventId;
+    this.currentTeamId = teamId;
+    this.currentTeamName = teamName;
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.subscribe(eventId);
+      this.subscribe(eventId, teamId, teamName);
       return;
     }
 
@@ -17,7 +24,7 @@ class WebSocketService {
 
     this.ws.onopen = () => {
       console.log('WebSocket connected');
-      this.subscribe(eventId);
+      this.subscribe(eventId, teamId, teamName);
     };
 
     this.ws.onmessage = (event) => {
@@ -43,16 +50,18 @@ class WebSocketService {
       // Attempt to reconnect after 3 seconds
       this.reconnectTimeout = setTimeout(() => {
         console.log('Attempting to reconnect...');
-        this.connect(eventId);
+        this.connect(this.currentEventId, this.currentTeamId, this.currentTeamName);
       }, 3000);
     };
   }
 
-  subscribe(eventId) {
+  subscribe(eventId, teamId = null, teamName = null) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         type: 'subscribe',
-        eventId
+        eventId,
+        teamId,
+        teamName
       }));
     }
   }

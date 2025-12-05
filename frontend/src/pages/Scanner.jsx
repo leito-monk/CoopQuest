@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
-import { scanQR } from '../services/api';
+import { scanQR, scanParticipantQR } from '../services/api';
 
 function Scanner() {
   const navigate = useNavigate();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [encounterData, setEncounterData] = useState(null);
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
 
@@ -43,8 +44,8 @@ function Scanner() {
 
       setScanning(true);
       setMessage('Apunta la cámara al código QR');
-    } catch (error) {
-      console.error('Error starting scanner:', error);
+    } catch (err) {
+      console.error('Error starting scanner:', err);
       setError('No se pudo acceder a la cámara. Por favor verifica los permisos.');
     }
   };
@@ -54,10 +55,14 @@ function Scanner() {
       try {
         await html5QrCodeRef.current.stop();
         html5QrCodeRef.current.clear();
-      } catch (error) {
-        console.error('Error stopping scanner:', error);
+      } catch (err) {
+        console.error('Error stopping scanner:', err);
       }
     }
+  };
+
+  const isParticipantQR = (qrCode) => {
+    return qrCode && qrCode.startsWith('COOPTEAM-');
   };
 
   const onScanSuccess = async (decodedText) => {
@@ -68,17 +73,48 @@ function Scanner() {
     try {
       await stopScanner();
 
-      // Verify QR code with backend
-      const response = await scanQR(decodedText);
-      const { checkpoint } = response.data.data;
+      // Check if it's a participant QR code
+      if (isParticipantQR(decodedText)) {
+        // Handle participant scan
+        const response = await scanParticipantQR(decodedText);
+        const data = response.data.data;
+        
+        // Navigate to dashboard with encounter active
+        navigate('/dashboard', {
+          state: { 
+            encounterStarted: true,
+            encounter: data.encounter,
+            scannedTeam: data.scannedTeam
+          }
+        });
+      } else {
+        // Handle checkpoint scan
+        const response = await scanQR(decodedText);
+        const result = response.data.data;
 
-      // Navigate to question page
-      navigate(`/question/${checkpoint.id}`, {
-        state: { checkpoint }
-      });
-    } catch (error) {
-      console.error('Error scanning QR:', error);
-      const errorMessage = error.response?.data?.message || 'Código QR inválido';
+        if (result.type === 'participant') {
+          // Backend detected it's a participant QR - scan via encounters endpoint
+          const encounterResponse = await scanParticipantQR(result.qrCode);
+          const data = encounterResponse.data.data;
+          
+          navigate('/dashboard', {
+            state: { 
+              encounterStarted: true,
+              encounter: data.encounter,
+              scannedTeam: data.scannedTeam
+            }
+          });
+        } else {
+          // Regular checkpoint
+          const { checkpoint } = result;
+          navigate(`/question/${checkpoint.id}`, {
+            state: { checkpoint }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error scanning QR:', err);
+      const errorMessage = err.response?.data?.message || 'Código QR inválido';
       setError(errorMessage);
 
       // Restart scanner after 3 seconds
@@ -90,9 +126,8 @@ function Scanner() {
     }
   };
 
-  const onScanError = (errorMessage) => {
+  const onScanError = () => {
     // Ignore scan errors (they happen frequently while scanning)
-    // console.log(errorMessage);
   };
 
   return (
@@ -157,6 +192,14 @@ function Scanner() {
               <li>• Asegúrate de tener buena iluminación</li>
               <li>• El escaneo es automático</li>
             </ul>
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-sm text-gray-400">
+                📍 <strong>Checkpoint:</strong> Responde una pregunta para ganar puntos
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                🤝 <strong>Participante:</strong> Inicia un desafío colaborativo con otro equipo
+              </p>
+            </div>
           </div>
         </div>
       </div>

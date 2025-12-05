@@ -2,6 +2,8 @@ import express from 'express';
 import * as eventsModel from '../models/events.js';
 import * as checkpointsModel from '../models/checkpoints.js';
 import * as teamsModel from '../models/teams.js';
+import * as challengesModel from '../models/collaborativeChallenges.js';
+import * as encountersModel from '../models/encounters.js';
 import { formatError, formatSuccess, generateQRCode } from '../utils/helpers.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { generateBeautifulQR } from '../utils/qrGenerator.js';
@@ -233,6 +235,112 @@ router.get('/events/:id/export', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error exporting results:', error);
     res.status(500).json(formatError('Error al exportar resultados', 500));
+  }
+});
+
+/**
+ * GET /api/admin/challenges/:eventId
+ * Get all collaborative challenges for an event
+ */
+router.get('/challenges/:eventId', authenticateAdmin, async (req, res) => {
+  try {
+    const challenges = await challengesModel.getAllChallenges(req.params.eventId);
+    res.json(formatSuccess(challenges));
+  } catch (error) {
+    console.error('Error getting challenges:', error);
+    res.status(500).json(formatError('Error al obtener desafíos', 500));
+  }
+});
+
+/**
+ * POST /api/admin/challenges
+ * Create a new collaborative challenge
+ */
+router.post('/challenges', authenticateAdmin, async (req, res) => {
+  try {
+    const challenge = await challengesModel.createChallenge(req.body);
+    res.status(201).json(formatSuccess(challenge, 'Desafío creado exitosamente'));
+  } catch (error) {
+    console.error('Error creating challenge:', error);
+    res.status(500).json(formatError('Error al crear desafío', 500));
+  }
+});
+
+/**
+ * PUT /api/admin/challenges/:id
+ * Update a collaborative challenge
+ */
+router.put('/challenges/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const challenge = await challengesModel.updateChallenge(req.params.id, req.body);
+    
+    if (!challenge) {
+      return res.status(404).json(formatError('Desafío no encontrado', 404));
+    }
+    
+    res.json(formatSuccess(challenge, 'Desafío actualizado exitosamente'));
+  } catch (error) {
+    console.error('Error updating challenge:', error);
+    res.status(500).json(formatError('Error al actualizar desafío', 500));
+  }
+});
+
+/**
+ * DELETE /api/admin/challenges/:id
+ * Delete a collaborative challenge
+ */
+router.delete('/challenges/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const challenge = await challengesModel.deleteChallenge(req.params.id);
+    
+    if (!challenge) {
+      return res.status(404).json(formatError('Desafío no encontrado', 404));
+    }
+    
+    res.json(formatSuccess(null, 'Desafío eliminado exitosamente'));
+  } catch (error) {
+    console.error('Error deleting challenge:', error);
+    res.status(500).json(formatError('Error al eliminar desafío', 500));
+  }
+});
+
+/**
+ * GET /api/admin/encounters/:eventId
+ * Get all encounters for an event
+ */
+router.get('/encounters/:eventId', authenticateAdmin, async (req, res) => {
+  try {
+    const encounters = await encountersModel.getEventEncounters(req.params.eventId);
+    res.json(formatSuccess(encounters));
+  } catch (error) {
+    console.error('Error getting encounters:', error);
+    res.status(500).json(formatError('Error al obtener encuentros', 500));
+  }
+});
+
+/**
+ * GET /api/admin/encounters/:eventId/stats
+ * Get encounter statistics for an event
+ */
+router.get('/encounters/:eventId/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const encounters = await encountersModel.getEventEncounters(req.params.eventId);
+    const teams = await teamsModel.getTeamsByEvent(req.params.eventId);
+    
+    const stats = {
+      totalTeams: teams.length,
+      totalEncounters: encounters.length,
+      completedEncounters: encounters.filter(e => e.status === 'completed').length,
+      failedEncounters: encounters.filter(e => e.status === 'failed').length,
+      pendingEncounters: encounters.filter(e => e.status === 'pending').length,
+      expiredEncounters: encounters.filter(e => e.status === 'expired').length,
+      totalPointsAwarded: encounters.reduce((sum, e) => sum + (e.points_awarded || 0), 0)
+    };
+    
+    res.json(formatSuccess(stats));
+  } catch (error) {
+    console.error('Error getting encounter stats:', error);
+    res.status(500).json(formatError('Error al obtener estadísticas de encuentros', 500));
   }
 });
 
