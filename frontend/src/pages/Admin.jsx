@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminLogin, createEvent, createCheckpoint, getCheckpointQR, exportEventResults, adminGetEvents, adminGetCheckpoints, adminUpdateEvent, adminDeleteEvent, adminUpdateCheckpoint, adminDeleteCheckpoint } from '../services/api';
+import { 
+  adminLogin, createEvent, createCheckpoint, getCheckpointQR, exportEventResults, 
+  adminGetEvents, adminGetCheckpoints, adminUpdateEvent, adminDeleteEvent, 
+  adminUpdateCheckpoint, adminDeleteCheckpoint,
+  adminGetChallenges, adminCreateChallenge, adminUpdateChallenge, adminDeleteChallenge,
+  adminGetEncounters, adminGetEncounterStats
+} from '../services/api';
 
 function Admin() {
   const navigate = useNavigate();
@@ -132,6 +138,26 @@ function Admin() {
               📍 Checkpoints
             </button>
             <button
+              onClick={() => setActiveTab('challenges')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'challenges'
+                  ? 'bg-white text-gray-800'
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              🤝 Desafíos
+            </button>
+            <button
+              onClick={() => setActiveTab('encounters')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'encounters'
+                  ? 'bg-white text-gray-800'
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              📊 Encuentros
+            </button>
+            <button
               onClick={() => setActiveTab('qr-generator')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'qr-generator'
@@ -159,6 +185,8 @@ function Admin() {
       <div className="max-w-6xl mx-auto p-6">
         {activeTab === 'events' && <EventsTab password={password} />}
         {activeTab === 'checkpoints' && <CheckpointsTab password={password} />}
+        {activeTab === 'challenges' && <ChallengesTab password={password} />}
+        {activeTab === 'encounters' && <EncountersTab password={password} />}
         {activeTab === 'qr-generator' && <QRGeneratorTab password={password} />}
         {activeTab === 'instructions' && <InstructionsTab />}
       </div>
@@ -1048,6 +1076,515 @@ function InstructionsTab() {
             </code>
           </section>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ChallengesTab({ password }) {
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [challenges, setChallenges] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingChallenge, setEditingChallenge] = useState(null);
+  const [formData, setFormData] = useState({
+    challenge_type: 'trivia',
+    question: '',
+    answer_hint: '',
+    requires_exact_match: false,
+    points: 50,
+    time_limit_seconds: 120
+  });
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      loadChallenges();
+    }
+  }, [selectedEventId]);
+
+  const loadEvents = async () => {
+    try {
+      const response = await adminGetEvents(password);
+      const data = response.data.data || [];
+      setEvents(data);
+      if (data.length > 0 && !selectedEventId) {
+        setSelectedEventId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  };
+
+  const loadChallenges = async () => {
+    if (!selectedEventId) return;
+    
+    setLoading(true);
+    try {
+      const response = await adminGetChallenges(selectedEventId, password);
+      setChallenges(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading challenges:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const challengeData = {
+        ...formData,
+        event_id: selectedEventId
+      };
+
+      if (editingChallenge) {
+        await adminUpdateChallenge(editingChallenge.id, challengeData, password);
+      } else {
+        await adminCreateChallenge(challengeData, password);
+      }
+      
+      setShowForm(false);
+      setEditingChallenge(null);
+      setFormData({
+        challenge_type: 'trivia',
+        question: '',
+        answer_hint: '',
+        requires_exact_match: false,
+        points: 50,
+        time_limit_seconds: 120
+      });
+      await loadChallenges();
+    } catch (error) {
+      alert('Error al guardar el desafío: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (challenge) => {
+    setEditingChallenge(challenge);
+    setFormData({
+      challenge_type: challenge.challenge_type,
+      question: challenge.question,
+      answer_hint: challenge.answer_hint || '',
+      requires_exact_match: challenge.requires_exact_match,
+      points: challenge.points,
+      time_limit_seconds: challenge.time_limit_seconds
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar este desafío?')) {
+      return;
+    }
+
+    try {
+      await adminDeleteChallenge(id, password);
+      await loadChallenges();
+    } catch (error) {
+      alert('Error al eliminar el desafío: ' + error.message);
+    }
+  };
+
+  const challengeTypeLabels = {
+    trivia: '🧠 Trivia',
+    math: '🔢 Matemático',
+    creative: '🎨 Creativo',
+    networking: '🤝 Networking'
+  };
+
+  if (events.length === 0) {
+    return (
+      <div className="card text-center py-8">
+        <p className="text-gray-600 mb-4">
+          No hay eventos creados. Crea un evento primero para poder agregar desafíos colaborativos.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <div className="mb-6">
+          <label className="block text-gray-700 font-semibold mb-2">
+            Seleccionar Evento
+          </label>
+          <select
+            className="input max-w-md"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+          >
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">
+            🤝 Desafíos Colaborativos
+          </h2>
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingChallenge(null);
+              setFormData({
+                challenge_type: 'trivia',
+                question: '',
+                answer_hint: '',
+                requires_exact_match: false,
+                points: 50,
+                time_limit_seconds: 120
+              });
+            }}
+            className="btn btn-primary"
+            disabled={!selectedEventId}
+          >
+            {showForm ? 'Cancelar' : '+ Nuevo Desafío'}
+          </button>
+        </div>
+
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-lg mb-6">
+            <h3 className="text-lg font-bold mb-4">
+              {editingChallenge ? 'Editar Desafío' : 'Crear Nuevo Desafío'}
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Tipo de Desafío *
+                </label>
+                <select
+                  className="input"
+                  value={formData.challenge_type}
+                  onChange={(e) => setFormData({ ...formData, challenge_type: e.target.value })}
+                  required
+                >
+                  <option value="trivia">🧠 Trivia</option>
+                  <option value="math">🔢 Matemático</option>
+                  <option value="creative">🎨 Creativo</option>
+                  <option value="networking">🤝 Networking</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Puntos *
+                </label>
+                <input
+                  type="number"
+                  className="input"
+                  min="1"
+                  value={formData.points}
+                  onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) })}
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Pregunta / Desafío *
+                </label>
+                <textarea
+                  className="input"
+                  rows="3"
+                  placeholder="Ej: ¿Cuál es el primer principio cooperativo? Acuerden la respuesta."
+                  value={formData.question}
+                  onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Pista (opcional)
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Ej: Tiene que ver con ser parte de la cooperativa"
+                  value={formData.answer_hint}
+                  onChange={(e) => setFormData({ ...formData, answer_hint: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Tiempo Límite (segundos) *
+                </label>
+                <input
+                  type="number"
+                  className="input"
+                  min="30"
+                  max="600"
+                  value={formData.time_limit_seconds}
+                  onChange={(e) => setFormData({ ...formData, time_limit_seconds: parseInt(e.target.value) })}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.requires_exact_match}
+                    onChange={(e) => setFormData({ ...formData, requires_exact_match: e.target.checked })}
+                    className="w-5 h-5"
+                  />
+                  <span className="text-gray-700">
+                    Requiere respuesta exacta (ambos deben escribir lo mismo)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'Guardando...' : editingChallenge ? 'Actualizar' : 'Crear Desafío'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingChallenge(null);
+                }}
+                className="btn btn-outline"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        )}
+
+        {loading && challenges.length === 0 ? (
+          <div className="text-center py-8">Cargando desafíos...</div>
+        ) : challenges.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No hay desafíos en este evento. Crea tu primer desafío colaborativo.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {challenges.map((challenge) => (
+              <div key={challenge.id} className="border-2 border-gray-200 rounded-lg p-4 hover:border-primary transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-lg font-bold text-primary">
+                        {challengeTypeLabels[challenge.challenge_type]}
+                      </span>
+                      <span className="badge badge-info">{challenge.points} pts</span>
+                      <span className="badge badge-warning">{challenge.time_limit_seconds}s</span>
+                      {challenge.requires_exact_match && (
+                        <span className="badge bg-purple-100 text-purple-800">Exacto</span>
+                      )}
+                    </div>
+                    <p className="text-gray-800 mb-2">{challenge.question}</p>
+                    {challenge.answer_hint && (
+                      <p className="text-sm text-gray-500 italic">💡 Pista: {challenge.answer_hint}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => handleEdit(challenge)}
+                      className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                      title="Editar"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDelete(challenge.id)}
+                      className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                      title="Eliminar"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EncountersTab({ password }) {
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [encounters, setEncounters] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      loadEncounters();
+      loadStats();
+    }
+  }, [selectedEventId]);
+
+  const loadEvents = async () => {
+    try {
+      const response = await adminGetEvents(password);
+      const data = response.data.data || [];
+      setEvents(data);
+      if (data.length > 0 && !selectedEventId) {
+        setSelectedEventId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  };
+
+  const loadEncounters = async () => {
+    if (!selectedEventId) return;
+    
+    setLoading(true);
+    try {
+      const response = await adminGetEncounters(selectedEventId, password);
+      setEncounters(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading encounters:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    if (!selectedEventId) return;
+    
+    try {
+      const response = await adminGetEncounterStats(selectedEventId, password);
+      setStats(response.data.data);
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
+
+  const statusLabels = {
+    pending: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800' },
+    completed: { label: 'Completado', color: 'bg-green-100 text-green-800' },
+    failed: { label: 'Fallido', color: 'bg-red-100 text-red-800' },
+    expired: { label: 'Expirado', color: 'bg-gray-100 text-gray-800' }
+  };
+
+  if (events.length === 0) {
+    return (
+      <div className="card text-center py-8">
+        <p className="text-gray-600 mb-4">
+          No hay eventos creados.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <div className="mb-6">
+          <label className="block text-gray-700 font-semibold mb-2">
+            Seleccionar Evento
+          </label>
+          <select
+            className="input max-w-md"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+          >
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">
+          📊 Estadísticas de Encuentros
+        </h2>
+
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-blue-600">{stats.totalTeams}</div>
+              <div className="text-sm text-gray-600">Equipos</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-green-600">{stats.completedEncounters}</div>
+              <div className="text-sm text-gray-600">Exitosos</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-red-600">{stats.failedEncounters}</div>
+              <div className="text-sm text-gray-600">Fallidos</div>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-yellow-600">{stats.totalPointsAwarded}</div>
+              <div className="text-sm text-gray-600">Puntos Otorgados</div>
+            </div>
+          </div>
+        )}
+
+        <h3 className="text-xl font-bold text-gray-800 mb-4">
+          Historial de Encuentros ({encounters.length})
+        </h3>
+
+        {loading ? (
+          <div className="text-center py-8">Cargando encuentros...</div>
+        ) : encounters.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No hay encuentros registrados en este evento.
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {encounters.map((encounter) => (
+              <div key={encounter.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="text-2xl">🤝</div>
+                    <div>
+                      <div className="font-bold text-gray-800">
+                        {encounter.scanner_team_name} → {encounter.scanned_team_name}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {encounter.challenge_type && (
+                          <span className="mr-2">
+                            Desafío: {encounter.challenge_type}
+                          </span>
+                        )}
+                        {new Date(encounter.started_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {encounter.points_awarded > 0 && (
+                      <span className="text-green-600 font-bold">
+                        +{encounter.points_awarded} pts
+                      </span>
+                    )}
+                    <span className={`badge ${statusLabels[encounter.status]?.color || 'bg-gray-100'}`}>
+                      {statusLabels[encounter.status]?.label || encounter.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
