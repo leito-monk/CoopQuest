@@ -1,12 +1,12 @@
 import { query, transaction } from '../database/db.js';
-import { generateTeamToken } from '../utils/helpers.js';
+import { generateTeamToken, generatePersonalQRCode } from '../utils/helpers.js';
 
 /**
  * Get all teams for an event
  */
 export async function getTeamsByEvent(eventId) {
   const result = await query(
-    'SELECT id, event_id, name, score, created_at FROM teams WHERE event_id = $1 ORDER BY score DESC, created_at',
+    'SELECT id, event_id, name, personal_qr_code, score, created_at FROM teams WHERE event_id = $1 ORDER BY score DESC, created_at',
     [eventId]
   );
   return result.rows;
@@ -17,7 +17,7 @@ export async function getTeamsByEvent(eventId) {
  */
 export async function getTeamById(id) {
   const result = await query(
-    'SELECT id, event_id, name, score, created_at FROM teams WHERE id = $1',
+    'SELECT id, event_id, name, personal_qr_code, score, created_at FROM teams WHERE id = $1',
     [id]
   );
   return result.rows[0];
@@ -39,12 +39,13 @@ export async function getTeamByToken(token) {
  */
 export async function createTeam(eventId, teamName) {
   const token = generateTeamToken();
+  const personalQRCode = generatePersonalQRCode();
   
   const result = await query(
-    `INSERT INTO teams (event_id, name, token)
-     VALUES ($1, $2, $3)
+    `INSERT INTO teams (event_id, name, token, personal_qr_code)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [eventId, teamName, token]
+    [eventId, teamName, token, personalQRCode]
   );
   
   // Initialize team_checkpoints for all event checkpoints
@@ -155,6 +156,28 @@ export async function getLeaderboard(eventId) {
      WHERE t.event_id = $1
      GROUP BY t.id, t.name, t.score
      ORDER BY t.score DESC, completed_checkpoints DESC, t.created_at`,
+    [eventId]
+  );
+  return result.rows;
+}
+
+/**
+ * Get team by personal QR code
+ */
+export async function getTeamByPersonalQR(personalQRCode) {
+  const result = await query(
+    'SELECT id, event_id, name, personal_qr_code, score, created_at FROM teams WHERE personal_qr_code = $1',
+    [personalQRCode]
+  );
+  return result.rows[0];
+}
+
+/**
+ * Get online teams for an event (all teams)
+ */
+export async function getOnlineTeams(eventId) {
+  const result = await query(
+    'SELECT id, name, personal_qr_code, score, created_at FROM teams WHERE event_id = $1 ORDER BY created_at DESC',
     [eventId]
   );
   return result.rows;

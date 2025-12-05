@@ -1,7 +1,8 @@
 import express from 'express';
 import * as teamsModel from '../models/teams.js';
 import * as checkpointsModel from '../models/checkpoints.js';
-import { formatError, formatSuccess, checkAnswer } from '../utils/helpers.js';
+import * as encountersModel from '../models/encounters.js';
+import { formatError, formatSuccess, checkAnswer, isPersonalQRCode } from '../utils/helpers.js';
 import { authenticateTeam } from '../middleware/auth.js';
 import { scanRateLimiter } from '../middleware/rateLimiter.js';
 
@@ -16,13 +17,21 @@ router.get('/progress', authenticateTeam, async (req, res) => {
     const progress = await teamsModel.getTeamProgress(req.team.teamId);
     const team = await teamsModel.getTeamById(req.team.teamId);
     
+    // Get encounter stats
+    const encounterStats = await encountersModel.getTeamEncounterStats(
+      req.team.teamId,
+      req.team.eventId
+    );
+    
     res.json(formatSuccess({
       team: {
         id: team.id,
         name: team.name,
-        score: team.score
+        score: team.score,
+        personalQRCode: team.personal_qr_code
       },
-      checkpoints: progress
+      checkpoints: progress,
+      encounters: encounterStats
     }));
   } catch (error) {
     console.error('Error fetching progress:', error);
@@ -40,6 +49,16 @@ router.post('/scan', authenticateTeam, scanRateLimiter, async (req, res) => {
     
     if (!qrCode) {
       return res.status(400).json(formatError('Código QR requerido', 400));
+    }
+    
+    // Check if this is a personal team QR code
+    if (isPersonalQRCode(qrCode)) {
+      // This is a participant QR - redirect to encounters
+      return res.json(formatSuccess({
+        type: 'participant',
+        qrCode,
+        message: 'Este es un QR de participante. Usa el endpoint de encuentros.'
+      }));
     }
     
     // Find checkpoint by QR code
@@ -74,6 +93,7 @@ router.post('/scan', authenticateTeam, scanRateLimiter, async (req, res) => {
     const { answer, ...checkpointData } = checkpoint;
     
     res.json(formatSuccess({
+      type: 'checkpoint',
       checkpoint: checkpointData,
       message: 'Checkpoint encontrado. Responde la pregunta para ganar puntos.'
     }));

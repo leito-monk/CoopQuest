@@ -67,6 +67,66 @@ const DEMO_CHECKPOINTS = [
   }
 ];
 
+// Collaborative challenges for networking
+const COLLABORATIVE_CHALLENGES = [
+  {
+    challenge_type: 'trivia',
+    question: '¿Cuál es el primer principio cooperativo? Acuerden la respuesta.',
+    answer_hint: 'Tiene que ver con ser parte de la cooperativa',
+    requires_exact_match: false,
+    points: 50,
+    time_limit_seconds: 120
+  },
+  {
+    challenge_type: 'networking',
+    question: 'Preséntense y descubran: ¿Qué tecnología usan ambos en sus cooperativas? Escriban una en común.',
+    answer_hint: null,
+    requires_exact_match: true,
+    points: 50,
+    time_limit_seconds: 180
+  },
+  {
+    challenge_type: 'creative',
+    question: 'Inventen un nombre para una cooperativa que combine lo que hacen ambos equipos.',
+    answer_hint: null,
+    requires_exact_match: true,
+    points: 75,
+    time_limit_seconds: 150
+  },
+  {
+    challenge_type: 'math',
+    question: 'Sumen la cantidad de integrantes de ambas cooperativas. Escriban el número.',
+    answer_hint: null,
+    requires_exact_match: true,
+    points: 50,
+    time_limit_seconds: 90
+  },
+  {
+    challenge_type: 'trivia',
+    question: '¿En qué año se fundó la primera cooperativa del mundo (Rochdale)? Acuerden el año.',
+    answer_hint: 'Fue en el siglo XIX',
+    requires_exact_match: true,
+    points: 60,
+    time_limit_seconds: 120
+  },
+  {
+    challenge_type: 'networking',
+    question: '¿Qué proyecto podrían hacer juntos? Escriban una palabra clave que lo describa.',
+    answer_hint: null,
+    requires_exact_match: true,
+    points: 50,
+    time_limit_seconds: 120
+  },
+  {
+    challenge_type: 'trivia',
+    question: 'Nombren 3 de los 7 principios cooperativos. Escríbanlos separados por comas.',
+    answer_hint: 'Adhesión voluntaria, control democrático, participación económica...',
+    requires_exact_match: false,
+    points: 60,
+    time_limit_seconds: 120
+  }
+];
+
 async function generateQRCodeImage(checkpoint, event, filename) {
   try {
     // Create demo-qrs directory if it doesn't exist
@@ -186,6 +246,26 @@ ${DEMO_CHECKPOINTS.map((cp, idx) => `${idx + 1}. ${cp.name}: **${cp.answer}**`).
     await fs.writeFile(readmePath, readmeContent);
     console.log('  ✅ Created README.md in demo-qrs directory\n');
     
+    // Create collaborative challenges
+    console.log('🤝 Creating collaborative challenges for networking...\n');
+    
+    const challenges = [];
+    for (const ch of COLLABORATIVE_CHALLENGES) {
+      const chResult = await query(
+        `INSERT INTO collaborative_challenges 
+         (event_id, challenge_type, question, answer_hint, requires_exact_match, points, time_limit_seconds)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [event.id, ch.challenge_type, ch.question, ch.answer_hint, ch.requires_exact_match, ch.points, ch.time_limit_seconds]
+      );
+      
+      const challenge = chResult.rows[0];
+      challenges.push(challenge);
+      
+      console.log(`  🤝 ${ch.challenge_type.toUpperCase()}: ${ch.question.substring(0, 50)}...`);
+    }
+    console.log('');
+    
     // Print summary
     console.log('╔═══════════════════════════════════════════════════════╗');
     console.log('║                                                       ║');
@@ -197,6 +277,7 @@ ${DEMO_CHECKPOINTS.map((cp, idx) => `${idx + 1}. ${cp.name}: **${cp.answer}**`).
     console.log(`   - Event: ${event.name}`);
     console.log(`   - Event ID: ${event.id}`);
     console.log(`   - Checkpoints: ${checkpoints.length}`);
+    console.log(`   - Collaborative Challenges: ${challenges.length}`);
     console.log(`   - QR Codes generated: ${checkpoints.length}`);
     console.log('');
     console.log('📁 QR codes location: backend/public/demo-qrs/');
@@ -206,6 +287,7 @@ ${DEMO_CHECKPOINTS.map((cp, idx) => `${idx + 1}. ${cp.name}: **${cp.answer}**`).
     console.log('   2. Start the frontend: cd ../frontend && npm run dev');
     console.log('   3. Register a team with the demo event');
     console.log('   4. Scan the QR codes from backend/public/demo-qrs/');
+    console.log('   5. Try the collaborative networking feature!');
     console.log('');
     
     process.exit(0);
