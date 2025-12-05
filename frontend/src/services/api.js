@@ -109,4 +109,43 @@ export const exportEventResults = (eventId, adminPassword) =>
     headers: { 'x-admin-password': adminPassword }
   });
 
+// Encounters - Collaborative Networking
+export const getOnlineTeams = () => api.get('/encounters/teams/online');
+export const getPendingEncounters = () => api.get('/encounters/pending');
+export const getEncounterHistory = () => api.get('/encounters/history');
+export const getActiveEncounter = () => api.get('/encounters/active');
+export const scanParticipantQR = (qrCode) => api.post('/encounters/scan', { qrCode });
+export const submitEncounterAnswer = (encounterId, answer) => 
+  api.post(`/encounters/${encounterId}/answer`, { answer });
+export const getEncounterStatus = (encounterId) => api.get(`/encounters/${encounterId}`);
+export const getTeamQR = (teamId) => api.get(`/encounters/qr/${teamId}`);
+
+// Admin - Collaborative Challenges
+export const adminGetChallenges = (eventId, adminPassword) =>
+  api.get(`/admin/challenges/${eventId}`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+export const adminCreateChallenge = (challengeData, adminPassword) =>
+  api.post('/admin/challenges', challengeData, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+export const adminUpdateChallenge = (challengeId, challengeData, adminPassword) =>
+  api.put(`/admin/challenges/${challengeId}`, challengeData, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+export const adminDeleteChallenge = (challengeId, adminPassword) =>
+  api.delete(`/admin/challenges/${challengeId}`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+
+// Admin - Encounters
+export const adminGetEncounters = (eventId, adminPassword) =>
+  api.get(`/admin/encounters/${eventId}`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+export const adminGetEncounterStats = (eventId, adminPassword) =>
+  api.get(`/admin/encounters/${eventId}/stats`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+
 export default api;
