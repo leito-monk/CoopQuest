@@ -7,6 +7,7 @@ import * as encountersModel from '../models/encounters.js';
 import { formatError, formatSuccess, generateQRCode } from '../utils/helpers.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { generateBeautifulQR } from '../utils/qrGenerator.js';
+import { query } from '../database/db.js';
 import QRCode from 'qrcode';
 import fs from 'fs/promises';
 import path from 'path';
@@ -341,6 +342,76 @@ router.get('/encounters/:eventId/stats', authenticateAdmin, async (req, res) => 
   } catch (error) {
     console.error('Error getting encounter stats:', error);
     res.status(500).json(formatError('Error al obtener estadísticas de encuentros', 500));
+  }
+});
+
+/**
+ * GET /api/admin/teams-stats/:eventId
+ * Get detailed statistics for all teams in an event
+ */
+router.get('/teams-stats/:eventId', authenticateAdmin, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    // Get all teams for the event
+    const teams = await teamsModel.getTeamsByEvent(eventId);
+    
+    // Get detailed stats for each team
+    const teamsWithStats = await Promise.all(teams.map(async (team) => {
+      // Get checkpoints completed
+      const checkpointsCompleted = await teamsModel.getTeamCheckpoints(team.id);
+      
+      // Get challenges completed
+      const challengesQuery = `
+        SELECT c.*, cc.completed_at, cc.points_awarded
+        FROM collaborative_challenges c
+        INNER JOIN challenge_completions cc ON c.id = cc.challenge_id
+        WHERE cc.team_id = $1
+        ORDER BY cc.completed_at DESC
+      `;
+      const challengesResult = await query(challengesQuery, [team.id]);
+      
+      // Get encounters
+      const encountersQuery = `
+        SELECT e.*, te.status as encounter_status, te.points_awarded, te.created_at as encounter_time
+        FROM encounters e
+        INNER JOIN team_encounters te ON e.id = te.encounter_id
+        WHERE te.team_id = $1
+        ORDER BY te.created_at DESC
+      `;
+      const encountersResult = await query(encountersQuery, [team.id]);
+      
+      return {
+        id: team.id,
+        name: team.name,
+        score: team.score || 0,
+        personalQRCode: team.personal_qr_code,
+        createdAt: team.created_at,
+        checkpoints: {
+          total: checkpointsCompleted.length,
+          completed: checkpointsCompleted.filter(c => c.status === 'completed').length,
+          items: checkpointsCompleted
+        },
+        challenges: {
+          total: challengesResult.rows.length,
+          items: challengesResult.rows
+        },
+        encounters: {
+          total: encountersResult.rows.length,
+          completed: encountersResult.rows.filter(e => e.encounter_status === 'completed').length,
+          failed: encountersResult.rows.filter(e => e.encounter_status === 'failed').length,
+          items: encountersResult.rows
+        }
+      };
+    }));
+    
+    // Sort by score (highest first)
+    teamsWithStats.sort((a, b) => b.score - a.score);
+    
+    res.json(formatSuccess(teamsWithStats));
+  } catch (error) {
+    console.error('Error getting teams stats:', error);
+    res.status(500).json(formatError('Error al obtener estadísticas de equipos', 500));
   }
 });
 

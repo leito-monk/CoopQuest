@@ -109,6 +109,12 @@ export const exportEventResults = (eventId, adminPassword) =>
     headers: { 'x-admin-password': adminPassword }
   });
 
+// Admin - Teams Stats
+export const adminGetTeamsStats = (eventId, adminPassword) =>
+  api.get(`/admin/teams-stats/${eventId}`, {
+    headers: { 'x-admin-password': adminPassword }
+  });
+
 // Encounters - Collaborative Networking
 export const getOnlineTeams = () => api.get('/encounters/teams/online');
 export const getPendingEncounters = () => api.get('/encounters/pending');

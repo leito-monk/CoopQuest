@@ -128,6 +128,16 @@ function Admin() {
               📅 Eventos
             </button>
             <button
+              onClick={() => setActiveTab('stats')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'stats'
+                  ? 'bg-white text-gray-800'
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              👥 Equipos en Vivo
+            </button>
+            <button
               onClick={() => setActiveTab('checkpoints')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'checkpoints'
@@ -184,6 +194,7 @@ function Admin() {
       {/* Content */}
       <div className="max-w-6xl mx-auto p-6">
         {activeTab === 'events' && <EventsTab password={password} />}
+        {activeTab === 'stats' && <StatsTab password={password} />}
         {activeTab === 'checkpoints' && <CheckpointsTab password={password} />}
         {activeTab === 'challenges' && <ChallengesTab password={password} />}
         {activeTab === 'encounters' && <EncountersTab password={password} />}
@@ -1579,6 +1590,228 @@ function EncountersTab({ password }) {
                     <span className={`badge ${statusLabels[encounter.status]?.color || 'bg-gray-100'}`}>
                       {statusLabels[encounter.status]?.label || encounter.status}
                     </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Stats Tab Component
+function StatsTab({ password }) {
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      loadTeamsStats();
+    }
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!autoRefresh || !selectedEventId) return;
+
+    const interval = setInterval(() => {
+      loadTeamsStats();
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, selectedEventId]);
+
+  const loadEvents = async () => {
+    try {
+      const response = await adminGetEvents(password);
+      const data = response.data.data || [];
+      setEvents(data);
+      if (data.length > 0 && !selectedEventId) {
+        setSelectedEventId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  };
+
+  const loadTeamsStats = async () => {
+    if (!selectedEventId) return;
+    
+    setLoading(true);
+    try {
+      const response = await adminGetTeamsStats(selectedEventId, password);
+      setTeams(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading teams stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (events.length === 0) {
+    return (
+      <div className="card text-center py-8">
+        <p className="text-gray-600 mb-4">
+          No hay eventos creados. Crea un evento primero.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">
+            👥 Equipos en Vivo
+          </h2>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm text-gray-600">
+                Auto-actualizar (5s)
+              </span>
+            </label>
+            <button
+              onClick={loadTeamsStats}
+              disabled={loading}
+              className="btn btn-outline"
+            >
+              {loading ? '🔄 Cargando...' : '🔄 Actualizar'}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-gray-700 font-semibold mb-2">
+            Seleccionar Evento
+          </label>
+          <select
+            className="input max-w-md"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+          >
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.name} ({event.status})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {loading && teams.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            Cargando equipos...
+          </div>
+        ) : teams.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            No hay equipos registrados en este evento
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {teams.map((team, index) => (
+              <div key={team.id} className="card bg-gray-50">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl font-bold text-blue-600">
+                      #{index + 1}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {team.name}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Código QR: {team.personalQRCode}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Registrado: {new Date(team.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-green-600">
+                      {team.score} pts
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Checkpoints */}
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">📍</span>
+                      <h4 className="font-semibold text-gray-800">Checkpoints</h4>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600 mb-1">
+                      {team.checkpoints.completed}/{team.checkpoints.total}
+                    </div>
+                    <div className="text-sm text-gray-500">completados</div>
+                    {team.checkpoints.items.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {team.checkpoints.items.slice(0, 3).map((cp) => (
+                          <div key={cp.id} className="text-xs text-gray-600 flex items-center gap-1">
+                            {cp.status === 'completed' ? '✅' : '⏳'} {cp.checkpoint_name}
+                          </div>
+                        ))}
+                        {team.checkpoints.items.length > 3 && (
+                          <div className="text-xs text-gray-400">
+                            +{team.checkpoints.items.length - 3} más
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Challenges */}
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🤝</span>
+                      <h4 className="font-semibold text-gray-800">Desafíos</h4>
+                    </div>
+                    <div className="text-2xl font-bold text-purple-600 mb-1">
+                      {team.challenges.total}
+                    </div>
+                    <div className="text-sm text-gray-500">completados</div>
+                    {team.challenges.items.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {team.challenges.items.slice(0, 3).map((ch) => (
+                          <div key={ch.id} className="text-xs text-gray-600">
+                            ✅ +{ch.points_awarded} pts
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Encounters */}
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">🤜🤛</span>
+                      <h4 className="font-semibold text-gray-800">Encuentros</h4>
+                    </div>
+                    <div className="text-2xl font-bold text-orange-600 mb-1">
+                      {team.encounters.completed}/{team.encounters.total}
+                    </div>
+                    <div className="text-sm text-gray-500">exitosos</div>
+                    {team.encounters.total > 0 && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        <div>✅ {team.encounters.completed} completados</div>
+                        <div>❌ {team.encounters.failed} fallidos</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -35,11 +35,11 @@ export const apiRateLimiter = rateLimit({
 
 /**
  * Rate limiter for registration
- * Max 5 registrations per 15 minutes per IP
+ * Max 50 registrations per 15 minutes per IP (increased for testing)
  */
 export const registrationRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 50, // Increased from 5 to 50 for development/testing
   message: {
     error: true,
     message: 'Demasiados registros desde esta IP, intenta más tarde',
